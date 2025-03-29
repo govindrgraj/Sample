@@ -1,0 +1,22 @@
+name: GitHub Discussion Bot
+
+on:
+  discussion_comment:
+    types: [created]
+
+jobs:
+  auto-reply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reply to Discussion Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          COMMENT_BODY="👋 Hi @${{ github.event.comment.user.login }}, thanks for your message! 😊"
+          DISCUSSION_NUMBER=${{ github.event.discussion.number }}
+          COMMENT_ID=${{ github.event.comment.id }}
+
+          curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/discussions/$DISCUSSION_NUMBER/comments \
+          -d "{\"body\":\"$COMMENT_BODY\"}"
