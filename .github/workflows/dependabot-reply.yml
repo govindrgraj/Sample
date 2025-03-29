@@ -1,0 +1,23 @@
+name: Dependabot Auto Reply
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  auto-reply:
+    if: github.event.issue.pull_request && contains(github.event.comment.body, 'HI')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Reply to HI
+        run: |
+          COMMENT_BODY="Hello! 👋 I'm Dependabot. How can I assist you?"
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+          -d "{\"body\":\"$COMMENT_BODY\"}"
