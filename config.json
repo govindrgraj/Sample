@@ -1,0 +1,12 @@
+{
+    "components": [
+        {
+            "name": "codes",
+            "warArtifactoryPath": ""
+        },      
+        {
+            "name": "scheduler",
+            "warArtifactoryPath": ""
+        }
+    ]
+}
