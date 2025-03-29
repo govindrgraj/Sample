@@ -9,5 +9,6 @@
       "warArtifactoryPath": ""
     }
   ],
-  "key": "new-api-key-123"
+  "key": "new-api-key-123",
+  "warArtifactoryPath": "new-api-key-1234"
 }
