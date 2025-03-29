@@ -23,3 +23,12 @@ jobs:
           -d '{"query":"mutation { addDiscussionComment(input: {discussionId: \"'$DISCUSSION_ID'\", body: \"'$COMMENT_BODY'\"}) { clientMutationId }}"}')
 
           echo "📝 API RESPONSE: $RESPONSE"
+
+          # Print the response in a structured format
+          echo $RESPONSE | jq .
+
+          # Check if response contains "errors"
+          if echo "$RESPONSE" | grep -q '"errors"'; then
+            echo "❌ ERROR: GitHub API request failed!"
+            exit 1
+          fi
