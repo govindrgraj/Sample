@@ -1,4 +1,4 @@
-name: Update Specific Key in Config
+name: Update Existing Key in Config
 
 on:
   issue_comment:
@@ -25,11 +25,24 @@ jobs:
           echo "KEY=$KEY" >> $GITHUB_ENV
           echo "VALUE=$VALUE" >> $GITHUB_ENV
 
-      - name: Update config.json
+      - name: Check if Key Exists in config.json
+        id: check_key
         run: |
-          jq --arg key "$KEY" --arg value "$VALUE" '.[$key] = $value' config.json > temp.json && mv temp.json config.json
+          if jq -e 'has(env.KEY)' config.json > /dev/null; then
+            echo "Key exists. Proceeding with update."
+            echo "EXISTS=true" >> $GITHUB_ENV
+          else
+            echo "Key does not exist!"
+            echo "EXISTS=false" >> $GITHUB_ENV
+          fi
+
+      - name: Update config.json if Key Exists
+        if: env.EXISTS == 'true'
+        run: |
+          jq --arg key "$KEY" --arg value "$VALUE" 'if has($key) then .[$key] = $value else . end' config.json > temp.json && mv temp.json config.json
 
       - name: Commit and Push Changes
+        if: env.EXISTS == 'true'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -37,7 +50,8 @@ jobs:
           git commit -m "Updated $KEY in config.json"
           git push origin main
 
-      - name: Comment on Issue
+      - name: Comment on Issue (Success)
+        if: env.EXISTS == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -46,3 +60,14 @@ jobs:
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
           -d '{"body":"✅ The `config.json` file has been updated! Key: **'$KEY'** → Value: **'$VALUE'**"}'
+
+      - name: Comment on Issue (Key Not Found)
+        if: env.EXISTS == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          curl -X POST -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+          -d '{"body":"❌ The key **'$KEY'** does not exist in `config.json`. No changes were made."}'
