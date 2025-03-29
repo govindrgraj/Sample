@@ -1,4 +1,4 @@
-name: Update Existing Key in Config
+name: Update warArtifactoryPath in Config
 
 on:
   issue_comment:
@@ -16,30 +16,31 @@ jobs:
         id: extract
         run: |
           COMMENT_BODY="${{ github.event.comment.body }}"
-          KEY=$(echo "$COMMENT_BODY" | awk '{print $2}')
-          VALUE=$(echo "$COMMENT_BODY" | awk '{$1=$2=""; print substr($0,3)}')
+          COMPONENT=$(echo "$COMMENT_BODY" | awk '{print $2}')
+          PATH_VALUE=$(echo "$COMMENT_BODY" | awk '{$1=$2=""; print substr($0,3)}')
 
-          echo "Updating key: $KEY"
-          echo "New value: $VALUE"
+          echo "Component: $COMPONENT"
+          echo "New Path: $PATH_VALUE"
 
-          echo "KEY=$KEY" >> $GITHUB_ENV
-          echo "VALUE=$VALUE" >> $GITHUB_ENV
+          echo "COMPONENT=$COMPONENT" >> $GITHUB_ENV
+          echo "PATH_VALUE=$PATH_VALUE" >> $GITHUB_ENV
 
-      - name: Check if Key Exists in config.json
-        id: check_key
+      - name: Check if Component Exists in config.json
+        id: check_component
         run: |
-          if jq -e 'has(env.KEY)' config.json > /dev/null; then
-            echo "Key exists. Proceeding with update."
+          if jq -e '.components[] | select(.name == env.COMPONENT)' config.json > /dev/null; then
+            echo "Component exists. Proceeding with update."
             echo "EXISTS=true" >> $GITHUB_ENV
           else
-            echo "Key does not exist!"
+            echo "Component not found!"
             echo "EXISTS=false" >> $GITHUB_ENV
           fi
 
-      - name: Update config.json if Key Exists
+      - name: Update warArtifactoryPath if Component Exists
         if: env.EXISTS == 'true'
         run: |
-          jq --arg key "$KEY" --arg value "$VALUE" 'if has($key) then .[$key] = $value else . end' config.json > temp.json && mv temp.json config.json
+          jq --arg component "$COMPONENT" --arg path "$PATH_VALUE" '
+            .components |= map(if .name == $component then .warArtifactoryPath = $path else . end)' config.json > temp.json && mv temp.json config.json
 
       - name: Commit and Push Changes
         if: env.EXISTS == 'true'
@@ -47,7 +48,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add config.json
-          git commit -m "Updated $KEY in config.json"
+          git commit -m "Updated warArtifactoryPath for $COMPONENT"
           git push origin main
 
       - name: Comment on Issue (Success)
@@ -59,9 +60,9 @@ jobs:
           curl -X POST -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
-          -d '{"body":"✅ The `config.json` file has been updated! Key: **'$KEY'** → Value: **'$VALUE'**"}'
+          -d '{"body":"✅ The `warArtifactoryPath` for **'$COMPONENT'** has been updated to: **'$PATH_VALUE'**"}'
 
-      - name: Comment on Issue (Key Not Found)
+      - name: Comment on Issue (Component Not Found)
         if: env.EXISTS == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,4 +71,4 @@ jobs:
           curl -X POST -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github.v3+json" \
           https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
-          -d '{"body":"❌ The key **'$KEY'** does not exist in `config.json`. No changes were made."}'
+          -d '{"body":"❌ The component **'$COMPONENT'** does not exist in `config.json`. No changes were made."}'
