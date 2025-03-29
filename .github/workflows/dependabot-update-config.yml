@@ -1,0 +1,84 @@
+name: Dependabot Config Auto-Update
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  update-config:
+    if: contains(github.event.comment.body, 'Update config')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write  # Needed to reply to issue comments
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "dependabot[bot]"
+          git config --global user.email "dependabot[bot]@users.noreply.github.com"
+
+      - name: Check File Availability
+        id: check_files
+        run: |
+          missing_files=""
+          for file in config.json config.txt; do
+            if [ ! -f "$file" ]; then
+              missing_files="$missing_files $file"
+            fi
+          done
+          
+          if [ -n "$missing_files" ]; then
+            echo "missing_files=$missing_files" >> $GITHUB_ENV
+            echo "File not found: $missing_files"
+            exit 1  # Stop workflow if files are missing
+          fi
+
+      - name: Update Config Files
+        if: success()
+        run: |
+          echo '{ "updated": "true", "timestamp": "'$(date)'" }' > config.json
+          echo "Config Updated: $(date)" > config.txt
+
+      - name: Create a New Branch
+        if: success()
+        run: |
+          BRANCH_NAME="dependabot-config-update-${{ github.run_id }}"
+          git checkout -b $BRANCH_NAME
+          git add config.json config.txt
+          git commit -m "Auto-update config files"
+          git push origin $BRANCH_NAME
+
+      - name: Create Pull Request
+        if: success()
+        uses: peter-evans/create-pull-request@v5
+        with:
+          branch: dependabot-config-update-${{ github.run_id }}
+          title: "Dependabot Config Update"
+          body: "This PR updates config.json and config.txt based on user request."
+          base: master
+
+      - name: Auto Merge PR
+        if: success()
+        uses: pascalgn/automerge-action@v0.15.6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          merge_method: squash
+
+  comment-missing-files:
+    needs: update-config
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment on Issue if Files Are Missing
+        run: |
+          COMMENT_BODY="⚠️ Error: The following files are missing and were not updated: **${{ env.missing_files }}**"
+          ISSUE_NUMBER=${{ github.event.issue.number }}
+          curl -s -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/issues/$ISSUE_NUMBER/comments \
+          -d "{\"body\":\"$COMMENT_BODY\"}"
