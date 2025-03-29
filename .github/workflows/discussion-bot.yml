@@ -10,12 +10,16 @@ jobs:
     steps:
       - name: Reply to Discussion Comment
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           COMMENT_BODY="👋 Hi @${{ github.event.comment.user.login }}, thanks for your message! 😊"
-          DISCUSSION_ID=${{ github.event.comment.discussion_id }}
+          DISCUSSION_ID=${{ github.event.discussion.node_id }}
 
-          curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" \
+          echo "🔍 DEBUG: Discussion ID -> $DISCUSSION_ID"
+
+          RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/${{ github.repository }}/discussions/$DISCUSSION_ID/comments \
-          -d "{\"body\":\"$COMMENT_BODY\"}"
+          https://api.github.com/graphql \
+          -d '{"query":"mutation { addDiscussionComment(input: {discussionId: \"'$DISCUSSION_ID'\", body: \"'$COMMENT_BODY'\"}) { clientMutationId }}"}')
+
+          echo "📝 API RESPONSE: $RESPONSE"
